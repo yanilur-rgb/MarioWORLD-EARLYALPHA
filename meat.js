@@ -113,6 +113,9 @@ function newRoom(rid, prefs) {
     });
 }
 
+// Add a global map near your other global variables (around line 9) to track command usage
+let commandCooldowns = {};
+
 let userCommands = {
     "godmode": function(word) {
         let success = word == this.room.prefs.godword;
@@ -122,10 +125,10 @@ let userCommands = {
             success: success
         });
     },
+    // FIX 1: Completely disable the ability to turn off sanitization
     "sanitize": function() {
-        let sanitizeTerms = ["false", "off", "disable", "disabled", "f", "no", "n"];
-        let argsString = Utils.argsString(arguments);
-        this.private.sanitize = !sanitizeTerms.includes(argsString.toLowerCase());
+        this.private.sanitize = true; 
+        this.socket.emit("talk", { text: "HEY EVERYONE LOOK AT ME I'M TRYING TO FUCK WITH THE SERVER LMAO" });
     },
     "joke": function() {
         this.room.emit("joke", {
@@ -140,13 +143,16 @@ let userCommands = {
         });
     },
     "youtube": function(vidRaw) {
-        var vid = this.private.sanitize ? sanitize(vidRaw) : vidRaw;
+        // FIX 2: Ensure data is a valid string before handling
+        if (typeof vidRaw !== 'string' || vidRaw.length > 100) return;
+        var vid = sanitize(vidRaw); // Force sanitization
         this.room.emit("youtube", {
             guid: this.guid,
             vid: vid
         });
     },
     "backflip": function(swag) {
+        if (typeof swag !== 'string' || swag.length > 50) return;
         this.room.emit("backflip", {
             guid: this.guid,
             swag: swag == "swag"
@@ -156,8 +162,8 @@ let userCommands = {
     "pawn": "passthrough",
     "bees": "passthrough",
     "color": function(color) {
-        if (typeof color != "undefined") {
-            if (settings.bonziColors.indexOf(color) == -1)
+        if (typeof color !== "undefined" && typeof color === "string") {
+            if (color.length > 50 || settings.bonziColors.indexOf(color) == -1)
                 return;
             
             this.public.color = color;
@@ -175,9 +181,11 @@ let userCommands = {
         this.room.updateUser(this);
     },
     "asshole": function() {
+        let argsString = Utils.argsString(arguments);
+        if (typeof argsString !== 'string' || argsString.length > 100) return;
         this.room.emit("asshole", {
             guid: this.guid,
-            target: sanitize(Utils.argsString(arguments))
+            target: sanitize(argsString)
         });
     },
     "triggered": "passthrough",
@@ -193,11 +201,11 @@ let userCommands = {
     },
     "name": function() {
         let argsString = Utils.argsString(arguments);
-        if (argsString.length > this.room.prefs.name_limit)
+        if (typeof argsString !== 'string' || argsString.length > this.room.prefs.name_limit)
             return;
 
         let name = argsString || this.room.prefs.defaultName;
-        this.public.name = this.private.sanitize ? sanitize(name) : name;
+        this.public.name = sanitize(name); // Force sanitization
         this.room.updateUser(this);
     },
     "pitch": function(pitch) {
